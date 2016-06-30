@@ -3,10 +3,36 @@
 
 # Tom Porter (@porterhau5)
 
+import optparse
 import os
 import sys
 
 def main():
+    usage = ("Usage: python [-u] %prog [LOGFILE]"
+          "\n\nA simple script for converting xinput output to legible "
+          "keystokes."
+          "\nCan process a log file directly when passed as an argument, or can"
+          "\nconvert keystrokes in near real-time if tailing a log file."
+          "\nIf tailing a log file, use python's -u switch to avoid buffering."
+          "\n\nExamples:\n  python %prog xkey.log (post process log file)"
+          "\n  cat xkey.log | python %prog (accepts logs from stdin)"
+          "\n  tail -f -n +1 xkey.log | python -u %prog (tail log file)"
+          "\n\nType -h or --help for a full listing of options.")
+    parser = optparse.OptionParser(usage=usage)
+
+    (options, args) = parser.parse_args()
+
+    # verify positional argument is set (INFILE)
+    if len(args) == 0:
+        stdin = True
+    else:
+        file_path = args[0]
+        # verify input file exists
+        if not os.path.isfile(file_path):
+            parser.error("%s - file does not exist" % file_path)
+            exit(1)
+        stdin = False
+
     codes = {}
     codes["9"] = [" <Esc> ", "NoSymbol", " <Esc> "]
     #codes["9"] = ["Escape", "NoSymbol", "Escape"]
@@ -322,8 +348,6 @@ def main():
     codes["245"] = ["XF86Bluetooth", "NoSymbol", "XF86Bluetooth"]
     codes["246"] = ["XF86WLAN", "NoSymbol", "XF86WLAN"]
 
-    script, filename = sys.argv
-
     # 0 - shift not active, 1 - shift active
     shift = 0
     # 50:LShift, 62:RShift
@@ -332,8 +356,10 @@ def main():
     # 37:LCtl, 64:LAlt, 105:RCtl, 133:Super_L, 134:Super_R
     mod_set = set(['37','64', '105', '133', '134'])
 
-    with open(filename) as f:
-        for line in f:
+    if stdin:
+        print "reading from stdin"
+        while True:
+            line = sys.stdin.readline()
             line = line.rstrip()
             state = line.split()[1]
             code = line.split()[2]
@@ -358,6 +384,33 @@ def main():
                         sys.stdout.write(codes[code][0])
                     else:
                         sys.stdout.write(out)
+    else:
+        with open(file_path) as f:
+            for line in f:
+                line = line.rstrip()
+                state = line.split()[1]
+                code = line.split()[2]
+                # determine state of shift modifier
+                if code in shift_set:
+                    if state == "press":
+                        shift = 1
+                    else:
+                        shift = 0
+                # register modifier on key press instead of release
+                elif code in mod_set:
+                    if state == "press":
+                        out = codes[code][shift]
+                        if out == "NoSymbol":
+                            sys.stdout.write(codes[code][0])
+                        else:
+                            sys.stdout.write(out)
+                # register all other keys on release
+                elif state == "release":
+                        out = codes[code][shift]
+                        if out == "NoSymbol":
+                            sys.stdout.write(codes[code][0])
+                        else:
+                            sys.stdout.write(out)
 
 
 if __name__ == '__main__':
