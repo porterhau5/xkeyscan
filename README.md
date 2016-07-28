@@ -3,7 +3,7 @@
 Simple script for parsing keycodes from an X-based keylogger on Linux.
 
 ## Usage
-```shell
+```
 $ python xkeyscan.py -h
 Usage: python [-u] xkeyscan.py [LOGFILE]
 
